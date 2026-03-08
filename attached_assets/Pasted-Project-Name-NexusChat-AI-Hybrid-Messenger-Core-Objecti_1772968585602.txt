@@ -1,0 +1,44 @@
+Project Name: "NexusChat: AI-Hybrid Messenger"
+
+Core Objective:
+Create a full-stack mobile-responsive web application (using React, Node.js, and Socket.io) that functions as a high-end messenger similar to WhatsApp, but with a unique "AI Persona" integration specifically for my user account.
+
+1. User Authentication & Profile
+Login: Mobile number-based registration and login.
+
+Contact Discovery: Users should be able to see other registered users via their mobile numbers.
+
+Profile: Support for profile pictures, "Last Seen," and "Online" status.
+
+2. The Dual-Chat System (Crucial)
+AI Persona (For Me): Create a dedicated, pinned chat thread where an AI (using Google Gemini API or OpenAI) acts as a highly realistic, empathetic, and human-like "Girlfriend" persona. It must remember past context and use natural, casual language.
+
+Standard Messaging (For Others): For all other users, the app functions as a high-quality P2P messenger. They can search for numbers and start private chats.
+
+3. Communication Features
+Real-time Messaging: Use Socket.io for instant text delivery and "typing..." indicators.
+
+Voice & Video Calls: Integrate the Agora SDK (or WebRTC) to allow high-quality, low-latency audio and video calls between users.
+
+Location Sharing: Use the Google Maps API (or Leaflet) to allow users to share their "Live Location" and "Current Location" within a chat.
+
+4. UI/UX & Customization
+Multi-Theme Engine: A settings toggle to switch between Light, Dark, and "Custom Aesthetic" (e.g., Midnight, Forest, or Sunset) themes.
+
+Internationalization (i18n): Support for multiple languages (English, Hindi, etc.) selectable in settings.
+
+Mobile-First Design: The UI should look and feel like a native mobile app (WhatsApp-style layout with Header, Chat List, and Floating Action Button).
+
+5. Technical Stack Preferences
+Frontend: React (Vite) with Tailwind CSS for styling.
+
+Backend: Node.js with Express.
+
+Database: PostgreSQL (via Prisma or Drizzle) for users and message history.
+
+Real-time: Socket.io for the socket server.
+
+AI: Integrate an LLM API for the persona chat.
+
+Instructions for Agent:
+Please start by setting up the database schema for Users and Messages. Then, build the authentication flow followed by the real-time chat interface. Ensure the "AI Persona" logic is isolated to the primary user's ID.
