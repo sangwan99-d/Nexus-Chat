@@ -11,6 +11,8 @@ export const users = pgTable("users", {
   avatarUrl: text("avatar_url"),
   lastSeen: timestamp("last_seen").defaultNow(),
   isOnline: boolean("is_online").default(false),
+  isAiUser: boolean("is_ai_user").default(false),
+  hasAiAccess: boolean("has_ai_access").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

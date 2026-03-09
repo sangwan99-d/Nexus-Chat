@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator, Platform } from "react-native";
-import { router, useLocalSearchParams, useNavigation } from "expo-router";
+import { View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator, Platform, Image } from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetch as expoFetch } from "expo/fetch";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
@@ -13,8 +12,6 @@ import { MessageBubble } from "@/components/MessageBubble";
 import { TypingIndicator, AITypingIndicator } from "@/components/TypingIndicator";
 import { ChatInput } from "@/components/ChatInput";
 import { getApiUrl, apiRequest } from "@/lib/query-client";
-
-const AI_ID = "ai-girlfriend";
 
 let msgCounter = 0;
 function uid() {
@@ -33,9 +30,16 @@ interface Message {
   createdAt?: string;
 }
 
+interface PeerUser {
+  id: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  isOnline?: boolean;
+  isAiUser?: boolean;
+}
+
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const isAI = id === AI_ID;
   const { theme } = useTheme();
   const { user } = useAuth();
   const { socket } = useSocket();
@@ -44,51 +48,42 @@ export default function ChatScreen() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(true);
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [sendingToAI, setSendingToAI] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
-  const [peerUser, setPeerUser] = useState<{ displayName: string; isOnline?: boolean } | null>(null);
-  const initRef = useRef(false);
+  const [peerUser, setPeerUser] = useState<PeerUser | null>(null);
 
-  const partnerName = isAI ? "Aria" : (peerUser?.displayName ?? "...");
+  const isAI = !!(peerUser?.isAiUser);
+
+  const partnerName = peerUser?.displayName ?? "...";
   const isOnline = isAI ? true : (peerUser?.isOnline ?? false);
 
+  const baseUrl = getApiUrl().replace(/\/$/, "");
+  const avatarUrl = peerUser?.avatarUrl
+    ? (peerUser.avatarUrl.startsWith("http") ? peerUser.avatarUrl : `${baseUrl}${peerUser.avatarUrl}`)
+    : null;
+
   useEffect(() => {
-    loadInitial();
+    if (id) loadInitial();
   }, [id]);
 
   const loadInitial = async () => {
     setLoadingMessages(true);
     try {
-      if (!isAI && id) {
-        const userRes = await apiRequest("GET", `/api/users/${id}`);
-        const userData = await userRes.json();
-        setPeerUser(userData);
-      }
+      const userRes = await apiRequest("GET", `/api/users/${id}`);
+      const userData = await userRes.json();
+      setPeerUser(userData);
 
-      if (isAI) {
-        const aiRes = await apiRequest("GET", "/api/ai/messages");
-        const aiData = await aiRes.json();
-        const mapped: Message[] = aiData.map((m: any) => ({
-          id: uid(),
-          fromUserId: m.role === "user" ? (user?.id ?? "") : AI_ID,
-          toUserId: m.role === "user" ? AI_ID : (user?.id ?? ""),
-          content: m.content,
-          type: "text",
-          createdAt: m.createdAt,
-        }));
-        setMessages(mapped);
-      } else {
-        const msgRes = await apiRequest("GET", `/api/messages/${id}`);
-        const msgData: Message[] = await msgRes.json();
-        setMessages(msgData);
-      }
+      const msgRes = await apiRequest("GET", `/api/messages/${id}`);
+      const msgData: Message[] = await msgRes.json();
+      setMessages(msgData);
     } catch {}
     finally { setLoadingMessages(false); }
   };
 
   useEffect(() => {
-    if (!socket || isAI) return;
+    if (!socket) return;
+
     const onNewMsg = (msg: Message) => {
       if ((msg.fromUserId === id && msg.toUserId === user?.id) ||
           (msg.fromUserId === user?.id && msg.toUserId === id)) {
@@ -97,8 +92,10 @@ export default function ChatScreen() {
           return exists ? prev : [...prev, msg];
         });
         queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+        if (msg.fromUserId === id) setSendingToAI(false);
       }
     };
+
     const onTyping = ({ fromUserId }: { fromUserId: string }) => {
       if (fromUserId === id) setPeerTyping(true);
     };
@@ -108,17 +105,30 @@ export default function ChatScreen() {
     const onStatus = ({ userId, isOnline: online }: { userId: string; isOnline: boolean }) => {
       if (userId === id) setPeerUser(p => p ? { ...p, isOnline: online } : p);
     };
+    const onSimuuTyping = () => {
+      if (isAI) setShowTyping(true);
+    };
+    const onSimuuReplied = () => {
+      setShowTyping(false);
+      setSendingToAI(false);
+    };
+
     socket.on("new_message", onNewMsg);
     socket.on("typing", onTyping);
     socket.on("stop_typing", onStopTyping);
     socket.on("user_status", onStatus);
+    socket.on("simuu_typing", onSimuuTyping);
+    socket.on("simuu_replied", onSimuuReplied);
+
     return () => {
       socket.off("new_message", onNewMsg);
       socket.off("typing", onTyping);
       socket.off("stop_typing", onStopTyping);
       socket.off("user_status", onStatus);
+      socket.off("simuu_typing", onSimuuTyping);
+      socket.off("simuu_replied", onSimuuReplied);
     };
-  }, [socket, id, user?.id]);
+  }, [socket, id, user?.id, isAI]);
 
   const handleTypingStart = () => {
     if (!isAI) socket?.emit("typing", { toUserId: id, fromUserId: user?.id });
@@ -130,103 +140,38 @@ export default function ChatScreen() {
   const handleSend = useCallback(async (content: string, type = "text", metadata?: unknown) => {
     if (!user) return;
 
-    if (isAI) {
-      const userMsg: Message = {
-        id: uid(),
-        fromUserId: user.id,
-        toUserId: AI_ID,
-        content,
-        type,
-        metadata,
-        createdAt: new Date().toISOString(),
-      };
-      const captured = [...messages];
-      setMessages(prev => [...prev, userMsg]);
-      setIsStreaming(true);
-      setShowTyping(true);
+    const tempMsg: Message = {
+      id: uid(),
+      fromUserId: user.id,
+      toUserId: id,
+      content,
+      type,
+      metadata,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, tempMsg]);
 
-      let fullContent = "";
-      let assistantAdded = false;
+    if (isAI) setSendingToAI(true);
 
-      try {
-        const baseUrl = getApiUrl();
-        const response = await expoFetch(`${baseUrl}api/ai/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
-          body: JSON.stringify({ content }),
-          credentials: "include",
-        });
-
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error("No body");
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const data = line.slice(6);
-            if (data === "[DONE]") continue;
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.content) {
-                fullContent += parsed.content;
-                if (!assistantAdded) {
-                  setShowTyping(false);
-                  setMessages(prev => [...prev, {
-                    id: uid(),
-                    fromUserId: AI_ID,
-                    toUserId: user.id,
-                    content: fullContent,
-                    type: "text",
-                    createdAt: new Date().toISOString(),
-                  }]);
-                  assistantAdded = true;
-                } else {
-                  setMessages(prev => {
-                    const updated = [...prev];
-                    updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent };
-                    return updated;
-                  });
-                }
-              }
-            } catch {}
-          }
-        }
-      } catch {
-        setShowTyping(false);
-        if (!assistantAdded) {
-          setMessages(prev => [...prev, {
-            id: uid(),
-            fromUserId: AI_ID,
-            toUserId: user.id,
-            content: "Sorry, I'm having trouble right now. Try again?",
-            type: "text",
-            createdAt: new Date().toISOString(),
-          }]);
-        }
-      } finally {
-        setIsStreaming(false);
-        setShowTyping(false);
-        queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    try {
+      const res = await apiRequest("POST", "/api/messages", { toUserId: id, content, type, metadata });
+      if (!res.ok) {
+        const data = await res.json();
+        console.error("Send failed:", data.error);
+        if (isAI) setSendingToAI(false);
+        return;
       }
-    } else {
-      try {
-        const res = await apiRequest("POST", "/api/messages", {
-          toUserId: id,
-          content,
-          type,
-          metadata,
-        });
-        queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
-      } catch {}
+      const saved = await res.json();
+      setMessages(prev => prev.map(m => m.id === tempMsg.id ? saved : m));
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    } catch {
+      if (isAI) setSendingToAI(false);
     }
-  }, [messages, user, id, isAI, socket]);
+  }, [user, id, isAI]);
+
+  const handleCall = (type: "audio" | "video") => {
+    router.push({ pathname: `/call/${id}`, params: { callType: type } });
+  };
 
   const reversed = [...messages].reverse();
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
@@ -238,35 +183,45 @@ export default function ChatScreen() {
         <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={theme.tint} />
         </Pressable>
+
         <View style={styles.headerInfo}>
-          <View style={[styles.headerAvatar, { backgroundColor: isAI ? theme.aiAccentDim : theme.tintDim }]}>
-            {isAI
-              ? <Ionicons name="sparkles" size={18} color={theme.aiAccent} />
-              : <Text style={[styles.headerInitials, { color: theme.tint }]}>{partnerName.slice(0, 2).toUpperCase()}</Text>
-            }
-          </View>
+          {avatarUrl ? (
+            <View style={styles.avatarWrap}>
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
+              {isOnline && <View style={[styles.onlineDot, { backgroundColor: theme.online, borderColor: theme.surface }]} />}
+            </View>
+          ) : (
+            <View style={[styles.headerAvatar, { backgroundColor: isAI ? theme.aiAccentDim : theme.tintDim }]}>
+              {isAI
+                ? <Ionicons name="sparkles" size={16} color={theme.aiAccent} />
+                : <Text style={[styles.headerInitials, { color: theme.tint }]}>{partnerName.slice(0, 2).toUpperCase()}</Text>
+              }
+              {isOnline && <View style={[styles.onlineDot, { backgroundColor: theme.online, borderColor: theme.surface }]} />}
+            </View>
+          )}
           <View>
             <Text style={[styles.headerName, { color: theme.text, fontFamily: "Inter_600SemiBold" }]}>{partnerName}</Text>
             <Text style={[styles.headerStatus, {
               color: isAI ? theme.aiAccent : (isOnline ? theme.online : theme.textMuted),
               fontFamily: "Inter_400Regular"
             }]}>
-              {isAI ? "AI Companion" : (isOnline ? "Online" : "Offline")}
+              {isAI ? (sendingToAI ? "typing..." : "AI Friend") : (isOnline ? "Online" : "Offline")}
             </Text>
           </View>
         </View>
-        {isAI && (
-          <Pressable
-            onPress={async () => {
-              await apiRequest("DELETE", "/api/ai/messages");
-              setMessages([]);
-            }}
-            hitSlop={8}
-            style={styles.clearBtn}
-          >
-            <Ionicons name="trash-outline" size={20} color={theme.textMuted} />
-          </Pressable>
-        )}
+
+        <View style={styles.headerActions}>
+          {!isAI && (
+            <>
+              <Pressable onPress={() => handleCall("audio")} hitSlop={8} style={styles.headerActionBtn}>
+                <Ionicons name="call-outline" size={22} color={theme.tint} />
+              </Pressable>
+              <Pressable onPress={() => handleCall("video")} hitSlop={8} style={styles.headerActionBtn}>
+                <Ionicons name="videocam-outline" size={22} color={theme.tint} />
+              </Pressable>
+            </>
+          )}
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -302,7 +257,7 @@ export default function ChatScreen() {
         <View style={{ paddingBottom: bottomPadding }}>
           <ChatInput
             onSend={handleSend}
-            disabled={isStreaming}
+            disabled={sendingToAI && isAI}
             onTypingStart={handleTypingStart}
             onTypingStop={handleTypingStop}
           />
@@ -315,19 +270,26 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    gap: 8,
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 12, paddingBottom: 10,
+    borderBottomWidth: 1, gap: 8,
   },
   backBtn: { padding: 4 },
   headerInfo: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
-  headerAvatar: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  avatarWrap: { position: "relative" },
+  avatarImg: { width: 38, height: 38, borderRadius: 19 },
+  headerAvatar: {
+    width: 38, height: 38, borderRadius: 19,
+    alignItems: "center", justifyContent: "center", position: "relative",
+  },
   headerInitials: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  onlineDot: {
+    position: "absolute", bottom: 0, right: 0,
+    width: 10, height: 10, borderRadius: 5, borderWidth: 1.5,
+  },
   headerName: { fontSize: 16 },
   headerStatus: { fontSize: 12 },
-  clearBtn: { padding: 6 },
+  headerActions: { flexDirection: "row", gap: 4 },
+  headerActionBtn: { padding: 6 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
 });

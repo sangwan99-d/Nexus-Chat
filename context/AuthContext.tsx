@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, ReactNode } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { apiRequest } from "@/lib/query-client";
 
 export interface AuthUser {
   id: string;
@@ -9,13 +8,16 @@ export interface AuthUser {
   avatarUrl?: string | null;
   lastSeen?: string | null;
   isOnline?: boolean;
+  isAiUser?: boolean;
+  hasAiAccess?: boolean;
 }
 
 interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
   login: (phone: string, password: string) => Promise<void>;
-  register: (phone: string, displayName: string, password: string) => Promise<void>;
+  register: (phone: string, displayName: string, password: string, otp: string) => Promise<void>;
+  sendOtp: (phone: string) => Promise<{ devOtp: string }>;
   logout: () => Promise<void>;
   updateProfile: (data: { displayName?: string; avatarUrl?: string }) => Promise<void>;
 }
@@ -42,15 +44,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const sendOtp = async (phone: string): Promise<{ devOtp: string }> => {
+    const res = await apiRequest("POST", "/api/auth/send-otp", { phone });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to send OTP");
+    return data;
+  };
+
   const login = async (phone: string, password: string) => {
     const res = await apiRequest("POST", "/api/auth/login", { phone, password });
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Login failed");
     setUser(data.user);
   };
 
-  const register = async (phone: string, displayName: string, password: string) => {
-    const res = await apiRequest("POST", "/api/auth/register", { phone, displayName, password });
+  const register = async (phone: string, displayName: string, password: string, otp: string) => {
+    const res = await apiRequest("POST", "/api/auth/register", { phone, displayName, password, otp });
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Registration failed");
     setUser(data.user);
   };
 
@@ -65,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(prev => prev ? { ...prev, ...updated } : null);
   };
 
-  const value = useMemo(() => ({ user, isLoading, login, register, logout, updateProfile }), [user, isLoading]);
+  const value = useMemo(() => ({ user, isLoading, login, register, sendOtp, logout, updateProfile }), [user, isLoading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

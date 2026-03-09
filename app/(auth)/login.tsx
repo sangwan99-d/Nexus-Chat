@@ -1,14 +1,7 @@
 import React, { useState, useRef } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  Pressable,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  ActivityIndicator,
+  View, Text, TextInput, StyleSheet, Pressable,
+  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -28,6 +21,12 @@ export default function LoginScreen() {
   const [error, setError] = useState("");
   const pwRef = useRef<TextInput>(null);
 
+  const getFullPhone = () => {
+    if (!phone) return "";
+    if (phone.startsWith("+91")) return phone;
+    return `+91${phone}`;
+  };
+
   const handleLogin = async () => {
     if (!phone || !password) {
       setError("Please enter phone and password");
@@ -36,7 +35,7 @@ export default function LoginScreen() {
     setLoading(true);
     setError("");
     try {
-      await login(phone, password);
+      await login(getFullPhone(), password);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/(tabs)");
     } catch (e: any) {
@@ -48,14 +47,12 @@ export default function LoginScreen() {
   };
 
   const inputStyle = [styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }];
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <ScrollView
-        contentContainerStyle={[
-          styles.container,
-          { backgroundColor: theme.background, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }
-        ]}
+        contentContainerStyle={[styles.container, { backgroundColor: theme.background, paddingTop: topPad + 24, paddingBottom: insets.bottom + 24 }]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
@@ -76,18 +73,23 @@ export default function LoginScreen() {
             </View>
           ) : null}
 
-          <Text style={[styles.label, { color: theme.textSecondary, fontFamily: "Inter_500Medium" }]}>Phone Number</Text>
-          <TextInput
-            style={inputStyle}
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="+1234567890"
-            placeholderTextColor={theme.textMuted}
-            keyboardType="phone-pad"
-            returnKeyType="next"
-            onSubmitEditing={() => pwRef.current?.focus()}
-            autoCapitalize="none"
-          />
+          <Text style={[styles.label, { color: theme.textSecondary, fontFamily: "Inter_500Medium" }]}>Indian Mobile Number</Text>
+          <View style={[styles.phoneRow, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+            <View style={[styles.countryCode, { borderRightColor: theme.border }]}>
+              <Text style={[styles.countryCodeText, { color: theme.text, fontFamily: "Inter_600SemiBold" }]}>🇮🇳 +91</Text>
+            </View>
+            <TextInput
+              style={[styles.phoneInput, { color: theme.text, fontFamily: "Inter_400Regular" }]}
+              value={phone.startsWith("+91") ? phone.slice(3) : phone}
+              onChangeText={(t) => setPhone(t.replace(/\D/g, "").slice(0, 10))}
+              placeholder="98765 43210"
+              placeholderTextColor={theme.textMuted}
+              keyboardType="phone-pad"
+              returnKeyType="next"
+              onSubmitEditing={() => pwRef.current?.focus()}
+              maxLength={10}
+            />
+          </View>
 
           <Text style={[styles.label, { color: theme.textSecondary, fontFamily: "Inter_500Medium" }]}>Password</Text>
           <View style={styles.pwWrap}>
@@ -113,10 +115,7 @@ export default function LoginScreen() {
           <Pressable
             onPress={handleLogin}
             disabled={loading}
-            style={({ pressed }) => [
-              styles.btn,
-              { backgroundColor: theme.tint, opacity: pressed ? 0.85 : 1 }
-            ]}
+            style={({ pressed }) => [styles.btn, { backgroundColor: theme.tint, opacity: pressed ? 0.85 : 1 }]}
           >
             {loading
               ? <ActivityIndicator color={theme.bubbleMeText} />
@@ -147,15 +146,14 @@ const styles = StyleSheet.create({
   form: { gap: 10 },
   label: { fontSize: 13, marginTop: 6, marginBottom: 2 },
   input: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15 },
+  phoneRow: { flexDirection: "row", alignItems: "center", borderRadius: 12, borderWidth: 1, overflow: "hidden" },
+  countryCode: { paddingHorizontal: 12, paddingVertical: 13, borderRightWidth: 1 },
+  countryCodeText: { fontSize: 15 },
+  phoneInput: { flex: 1, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15 },
   pwWrap: { flexDirection: "row" },
   eyeBtn: {
-    width: 50,
-    borderTopRightRadius: 12,
-    borderBottomRightRadius: 12,
-    borderWidth: 1,
-    borderLeftWidth: 0,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 50, borderTopRightRadius: 12, borderBottomRightRadius: 12,
+    borderWidth: 1, borderLeftWidth: 0, alignItems: "center", justifyContent: "center",
   },
   errorBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
   errorText: { color: "#FF3B30", flex: 1, fontSize: 14 },

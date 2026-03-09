@@ -8,6 +8,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, data: Partial<User>): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
+  getAiUser(): Promise<User | undefined>;
 
   getMessages(userId1: string, userId2: string): Promise<Message[]>;
   createMessage(msg: { fromUserId: string; toUserId: string; content: string; type?: string; metadata?: unknown }): Promise<Message>;
@@ -42,6 +43,11 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return db.select().from(users);
+  }
+
+  async getAiUser(): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.isAiUser, true));
+    return user;
   }
 
   async getMessages(userId1: string, userId2: string): Promise<Message[]> {
