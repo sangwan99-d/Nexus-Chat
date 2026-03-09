@@ -249,6 +249,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { phone, password } = req.body;
+      if (!phone || !password) {
+        return res.status(400).json({ error: "Phone and password are required" });
+      }
       const normalized = normalizeIndianPhone(phone);
       const user = await storage.getUserByPhone(normalized);
       if (!user) return res.status(401).json({ error: "Invalid phone or password" });
@@ -256,8 +259,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!valid) return res.status(401).json({ error: "Invalid phone or password" });
       req.session.userId = user.id;
       res.json({ user: sanitizeUser(user) });
-    } catch {
-      res.status(500).json({ error: "Login failed" });
+    } catch (err) {
+      console.error("[login] error:", err);
+      res.status(500).json({ error: "Login failed. Please try again." });
     }
   });
 
