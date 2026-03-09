@@ -26,6 +26,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(auth)" options={{ presentation: "modal" }} />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="chat/[id]" />
+      <Stack.Screen name="call/[id]" options={{ presentation: "fullScreenModal", animation: "fade" }} />
     </Stack>
   );
 }
