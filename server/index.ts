@@ -1,6 +1,7 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { ensureTablesExist } from "./db";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -185,6 +186,14 @@ function setupErrorHandler(app: express.Application) {
   setupBodyParsing(app);
   setupRequestLogging(app);
   configureExpoAndLanding(app);
+
+  // Auto-create database tables if they don't exist
+  try {
+    await ensureTablesExist();
+  } catch (err) {
+    console.error("[startup] Database table creation failed:", err);
+    console.error("[startup] Make sure DATABASE_URL is set and the database is accessible");
+  }
 
   const server = await registerRoutes(app);
 
