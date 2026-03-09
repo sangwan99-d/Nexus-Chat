@@ -46,7 +46,11 @@ function formatTime(dateStr?: string | null) {
 
 function getLastMessagePreview(msg: ConversationItem["lastMessage"], isMe: boolean) {
   if (!msg) return "No messages yet";
-  if (msg.type === "location") return isMe ? "You shared a location" : "Shared a location";
+  const prefix = isMe ? "You: " : "";
+  if (msg.type === "location") return `${prefix}Shared a location`;
+  if (msg.type === "image") return `${prefix}Sent a photo`;
+  if (msg.type === "video") return `${prefix}Sent a video`;
+  if (msg.type === "file") return `${prefix}Sent a file`;
   const content = msg.content.length > 40 ? msg.content.slice(0, 40) + "..." : msg.content;
   if (isMe) return `You: ${content}`;
   return content;

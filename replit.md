@@ -12,7 +12,7 @@ A full-stack mobile-first chat application built with Expo React Native and Expr
 ## Features
 
 - **Phone-based Auth** — Register/login with mobile number + password (sessions via express-session + connect-pg-simple)
-- **AI Girlfriend "Aria"** — Streaming chat with a human-like AI persona (GPT-5.2, remembers full conversation history)
+- **AI Girlfriend "Simuu"** — Streaming chat with a human-like AI persona (GPT-5.2, remembers full conversation history)
 - **P2P Messaging** — Real-time chat via Socket.io with typing indicators and online status
 - **Location Sharing** — Share GPS location in chat (expo-location)
 - **Multi-Theme** — Dark, Light, Midnight, Forest, Sunset themes (persisted in AsyncStorage)
