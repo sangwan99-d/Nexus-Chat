@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator, Platform, Image } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,7 +9,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
 import { MessageBubble } from "@/components/MessageBubble";
-import { TypingIndicator, AITypingIndicator } from "@/components/TypingIndicator";
+import { TypingIndicator } from "@/components/TypingIndicator";
 import { ChatInput } from "@/components/ChatInput";
 import { getApiUrl, apiRequest } from "@/lib/query-client";
 
@@ -191,21 +191,18 @@ export default function ChatScreen() {
               {isOnline && <View style={[styles.onlineDot, { backgroundColor: theme.online, borderColor: theme.surface }]} />}
             </View>
           ) : (
-            <View style={[styles.headerAvatar, { backgroundColor: isAI ? theme.aiAccentDim : theme.tintDim }]}>
-              {isAI
-                ? <Ionicons name="sparkles" size={16} color={theme.aiAccent} />
-                : <Text style={[styles.headerInitials, { color: theme.tint }]}>{partnerName.slice(0, 2).toUpperCase()}</Text>
-              }
+            <View style={[styles.headerAvatar, { backgroundColor: theme.tintDim }]}>
+              <Text style={[styles.headerInitials, { color: theme.tint }]}>{partnerName.slice(0, 2).toUpperCase()}</Text>
               {isOnline && <View style={[styles.onlineDot, { backgroundColor: theme.online, borderColor: theme.surface }]} />}
             </View>
           )}
           <View>
             <Text style={[styles.headerName, { color: theme.text, fontFamily: "Inter_600SemiBold" }]}>{partnerName}</Text>
             <Text style={[styles.headerStatus, {
-              color: isAI ? theme.aiAccent : (isOnline ? theme.online : theme.textMuted),
+              color: isOnline ? theme.online : theme.textMuted,
               fontFamily: "Inter_400Regular"
             }]}>
-              {isAI ? (sendingToAI ? "typing..." : "AI Friend") : (isOnline ? "Online" : "Offline")}
+              {(sendingToAI && isAI) || peerTyping ? "typing..." : (isOnline ? "Online" : "Offline")}
             </Text>
           </View>
         </View>
@@ -231,7 +228,7 @@ export default function ChatScreen() {
       >
         {loadingMessages ? (
           <View style={styles.center}>
-            <ActivityIndicator color={isAI ? theme.aiAccent : theme.tint} size="large" />
+            <ActivityIndicator color={theme.tint} size="large" />
           </View>
         ) : (
           <FlatList
@@ -246,7 +243,7 @@ export default function ChatScreen() {
             )}
             ListHeaderComponent={
               (showTyping || peerTyping) ? (
-                isAI ? <AITypingIndicator /> : <TypingIndicator />
+                <TypingIndicator />
               ) : null
             }
             keyboardDismissMode="interactive"

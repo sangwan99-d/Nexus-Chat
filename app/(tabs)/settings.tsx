@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View, Text, StyleSheet, Pressable, ScrollView, Switch,
   TextInput, ActivityIndicator, Alert, Platform
@@ -11,7 +11,6 @@ import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { THEMES, type ThemeKey } from "@/constants/colors";
 import { router } from "expo-router";
-import { apiRequest } from "@/lib/query-client";
 
 interface ThemeOption {
   key: ThemeKey;
@@ -80,17 +79,6 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const [simuuId, setSimuuId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (user?.hasAiAccess) {
-      apiRequest("GET", "/api/system/ai-user")
-        .then(res => res.json())
-        .then(data => { if (data.aiUser) setSimuuId(data.aiUser.id); })
-        .catch(() => {});
-    }
-  }, [user]);
-
   const initials = user?.displayName?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) ?? "?";
 
   return (
@@ -152,23 +140,6 @@ export default function SettingsScreen() {
           </Pressable>
         ))}
       </View>
-
-      <Text style={[styles.sectionTitle, { color: theme.textMuted, fontFamily: "Inter_600SemiBold" }]}>AI GIRLFRIEND</Text>
-      <Pressable
-        style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
-        onPress={() => { if (simuuId) router.push(`/chat/${simuuId}`); }}
-      >
-        <View style={styles.settingsRow}>
-          <View style={[styles.settingsIcon, { backgroundColor: theme.aiAccentDim }]}>
-            <Ionicons name="sparkles" size={18} color={theme.aiAccent} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.settingsLabel, { color: theme.text, fontFamily: "Inter_500Medium" }]}>Chat with Simuu</Text>
-            <Text style={[styles.settingsDesc, { color: theme.textSecondary, fontFamily: "Inter_400Regular" }]}>Your AI companion</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
-        </View>
-      </Pressable>
 
       <Text style={[styles.sectionTitle, { color: theme.textMuted, fontFamily: "Inter_600SemiBold" }]}>ACCOUNT</Text>
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>

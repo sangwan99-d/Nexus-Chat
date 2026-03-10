@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import {
   View, Text, FlatList, StyleSheet, Pressable, TextInput,
-  ActivityIndicator, RefreshControl, Platform, Image,
+  ActivityIndicator, RefreshControl, Platform,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,16 +11,8 @@ import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
 import { ChatListItem } from "@/components/ChatListItem";
-import { getApiUrl, apiRequest } from "@/lib/query-client";
+import { getApiUrl } from "@/lib/query-client";
 import * as Haptics from "expo-haptics";
-
-interface AiUserInfo {
-  id: string;
-  displayName: string;
-  avatarUrl?: string | null;
-  isOnline?: boolean;
-  isAiUser?: boolean;
-}
 
 interface Conversation {
   user: {
@@ -48,25 +40,11 @@ export default function ChatsScreen() {
   const [search, setSearch] = useState("");
   const [searchResult, setSearchResult] = useState<Conversation | null>(null);
   const [searching, setSearching] = useState(false);
-  const [simuuUser, setSimuuUser] = useState<AiUserInfo | null>(null);
   const [incomingCall, setIncomingCall] = useState<{ fromUser: any; callType: string; offer: any; fromSocketId: string } | null>(null);
 
   const { data: conversations = [], isLoading, refetch, isRefetching } = useQuery<Conversation[]>({
     queryKey: ["/api/conversations"],
   });
-
-  useEffect(() => {
-    loadSimuu();
-  }, [user]);
-
-  const loadSimuu = async () => {
-    if (!user?.hasAiAccess) return;
-    try {
-      const res = await apiRequest("GET", "/api/system/ai-user");
-      const data = await res.json();
-      if (data.aiUser) setSimuuUser(data.aiUser);
-    } catch {}
-  };
 
   useEffect(() => {
     if (!socket) return;
@@ -132,24 +110,10 @@ export default function ChatsScreen() {
   }, [conversations, search, searchResult]);
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
-  const baseUrl = getApiUrl().replace(/\/$/, "");
-
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={[styles.header, { paddingTop: topPadding + 8, borderBottomColor: theme.border }]}>
         <Text style={[styles.headerTitle, { color: theme.text, fontFamily: "Inter_700Bold" }]}>Chats</Text>
-        {user?.hasAiAccess && simuuUser ? (
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push(`/chat/${simuuUser.id}`);
-            }}
-            style={[styles.aiBtn, { backgroundColor: theme.aiAccentDim, borderColor: theme.aiAccent + "40" }]}
-          >
-            <Ionicons name="sparkles" size={16} color={theme.aiAccent} />
-            <Text style={[styles.aiBtnText, { color: theme.aiAccent, fontFamily: "Inter_600SemiBold" }]}>Simuu</Text>
-          </Pressable>
-        ) : null}
       </View>
 
       {incomingCall ? (
@@ -201,20 +165,11 @@ export default function ChatsScreen() {
           keyExtractor={item => item.user.id}
           renderItem={({ item }) => (
             <ChatListItem
-              item={{ ...item, isAI: !!item.user.isAiUser }}
+              item={item}
               currentUserId={user?.id ?? ""}
               onPress={() => router.push(`/chat/${item.user.id}`)}
             />
           )}
-          ListHeaderComponent={
-            search === "" && user?.hasAiAccess && simuuUser ? (
-              <ChatListItem
-                item={{ user: { ...simuuUser, isOnline: true }, lastMessage: null, isAI: true }}
-                currentUserId={user?.id ?? ""}
-                onPress={() => router.push(`/chat/${simuuUser.id}`)}
-              />
-            ) : null
-          }
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.tint} />
           }
@@ -251,11 +206,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 28 },
-  aiBtn: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1,
-  },
-  aiBtnText: { fontSize: 14 },
   callBanner: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     marginHorizontal: 12, marginTop: 8, padding: 12, borderRadius: 14, borderWidth: 1,
