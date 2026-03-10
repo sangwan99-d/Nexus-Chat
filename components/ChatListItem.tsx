@@ -1,7 +1,5 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import Animated, { useAnimatedStyle, withSpring } from "react-native-reanimated";
 import { useTheme } from "@/context/ThemeContext";
 
 interface ConversationItem {
@@ -63,7 +61,7 @@ export function ChatListItem({ item, currentUserId, onPress }: Props) {
   const time = formatTime(item.lastMessage?.createdAt);
   const initials = getInitials(item.user.displayName);
 
-  const avatarBgColor = item.isAI ? theme.aiAccent : theme.tint;
+  const avatarBgColor = theme.tint;
 
   return (
     <Pressable
@@ -74,14 +72,10 @@ export function ChatListItem({ item, currentUserId, onPress }: Props) {
       ]}
     >
       <View style={styles.avatarWrap}>
-        <View style={[styles.avatar, { backgroundColor: item.isAI ? theme.aiAccentDim : theme.tintDim, borderColor: avatarBgColor + "30", borderWidth: 1.5 }]}>
-          {item.isAI ? (
-            <Ionicons name="sparkles" size={22} color={theme.aiAccent} />
-          ) : (
-            <Text style={[styles.initials, { color: avatarBgColor }]}>{initials}</Text>
-          )}
+        <View style={[styles.avatar, { backgroundColor: theme.tintDim, borderColor: avatarBgColor + "30", borderWidth: 1.5 }]}>
+          <Text style={[styles.initials, { color: avatarBgColor }]}>{initials}</Text>
         </View>
-        {item.user.isOnline && !item.isAI && (
+        {item.user.isOnline && (
           <View style={[styles.onlineDot, { backgroundColor: theme.online, borderColor: theme.background }]} />
         )}
       </View>
@@ -93,9 +87,6 @@ export function ChatListItem({ item, currentUserId, onPress }: Props) {
             style={[styles.name, { color: theme.text, fontFamily: "Inter_600SemiBold" }]}
           >
             {item.user.displayName}
-            {item.isAI && (
-              <Text style={{ color: theme.aiAccent, fontFamily: "Inter_400Regular", fontSize: 12 }}> • AI</Text>
-            )}
           </Text>
           <Text style={[styles.time, { color: theme.textMuted, fontFamily: "Inter_400Regular" }]}>{time}</Text>
         </View>
