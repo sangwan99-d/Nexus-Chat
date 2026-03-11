@@ -4,15 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { getApiUrl } from "@/lib/query-client";
 
-let MapView: React.ComponentType<any> | null = null;
-let Marker: React.ComponentType<any> | null = null;
-try {
-  const maps = require("react-native-maps");
-  MapView = maps.default;
-  Marker = maps.Marker;
-} catch {
-  // react-native-maps not available (e.g. web) - will use fallback
-}
+import { MapView, Marker } from "@/components/NativeMapView";
 
 interface MessageMetadata {
   latitude?: number;
