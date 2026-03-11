@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
-  View, Text, StyleSheet, Pressable, ScrollView, Switch,
-  TextInput, ActivityIndicator, Alert, Platform
+  View, Text, StyleSheet, Pressable, ScrollView,
+  TextInput, ActivityIndicator, Alert, Platform, Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,6 +11,8 @@ import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { THEMES, type ThemeKey } from "@/constants/colors";
 import { router } from "expo-router";
+import { getApiUrl } from "@/lib/query-client";
+import { fetch as expoFetch } from "expo/fetch";
 
 interface ThemeOption {
   key: ThemeKey;
@@ -56,12 +58,37 @@ export default function SettingsScreen() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
-      base64: true,
     });
-    if (!result.canceled && result.assets[0].base64) {
-      const dataUrl = `data:image/jpeg;base64,${result.assets[0].base64}`;
-      await updateProfile({ avatarUrl: dataUrl });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (!result.canceled && result.assets[0]) {
+      setSaving(true);
+      try {
+        const asset = result.assets[0];
+        const mimeType = asset.mimeType || "image/jpeg";
+        const name = asset.fileName || `avatar_${Date.now()}.jpg`;
+        const baseUrl = getApiUrl();
+        const uploadUrl = `${baseUrl}api/upload`;
+        const formData = new FormData();
+        if (Platform.OS === "web") {
+          const response = await fetch(asset.uri);
+          const blob = await response.blob();
+          formData.append("file", blob, name);
+        } else {
+          formData.append("file", { uri: asset.uri, name, type: mimeType } as unknown as Blob);
+        }
+        const res = await expoFetch(uploadUrl, {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Upload failed");
+        await updateProfile({ avatarUrl: data.url });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (e) {
+        console.error("Avatar upload failed:", e);
+      } finally {
+        setSaving(false);
+      }
     }
   };
 
@@ -80,6 +107,10 @@ export default function SettingsScreen() {
   };
 
   const initials = user?.displayName?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) ?? "?";
+  const baseUrl = getApiUrl().replace(/\/$/, "");
+  const avatarImageUrl = user?.avatarUrl
+    ? (user.avatarUrl.startsWith("http") || user.avatarUrl.startsWith("data:") ? user.avatarUrl : `${baseUrl}${user.avatarUrl}`)
+    : null;
 
   return (
     <ScrollView
@@ -90,7 +121,11 @@ export default function SettingsScreen() {
 
       <View style={[styles.profileCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Pressable onPress={handlePickAvatar} style={[styles.avatar, { backgroundColor: theme.tintDim }]}>
-          <Text style={[styles.initials, { color: theme.tint, fontFamily: "Inter_700Bold" }]}>{initials}</Text>
+          {avatarImageUrl ? (
+            <Image source={{ uri: avatarImageUrl }} style={styles.avatarImage} />
+          ) : (
+            <Text style={[styles.initials, { color: theme.tint, fontFamily: "Inter_700Bold" }]}>{initials}</Text>
+          )}
           <View style={[styles.editOverlay, { backgroundColor: "rgba(0,0,0,0.4)" }]}>
             <Ionicons name="camera" size={14} color="#fff" />
           </View>
@@ -177,6 +212,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   initials: { fontSize: 22 },
+  avatarImage: { width: 64, height: 64, borderRadius: 32 },
   editOverlay: {
     position: "absolute",
     bottom: 0,

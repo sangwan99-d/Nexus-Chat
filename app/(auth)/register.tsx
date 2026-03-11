@@ -9,9 +9,11 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { AnimatedBackground } from "@/components/AnimatedBackground";
+import { sendOtpWithFirebase } from "@/lib/firebase-auth";
 
 export default function RegisterScreen() {
-  const { sendOtp, register } = useAuth();
+  const { register } = useAuth();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -21,6 +23,8 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [devOtp, setDevOtp] = useState("");
+  const [firebaseConfirmation, setFirebaseConfirmation] = useState<unknown>(null);
+  const [usedFirebase, setUsedFirebase] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -76,8 +80,10 @@ export default function RegisterScreen() {
     setLoading(true);
     setError("");
     try {
-      const result = await sendOtp(getDisplayPhone());
+      const result = await sendOtpWithFirebase(getDisplayPhone());
       setDevOtp(result.devOtp || "");
+      setFirebaseConfirmation(result.confirmationResult);
+      setUsedFirebase(result.usedFirebase);
       setStep("otp");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setTimeout(() => otpRef.current?.focus(), 300);
@@ -113,8 +119,9 @@ export default function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <AnimatedBackground />
       <ScrollView
-        contentContainerStyle={[styles.container, { backgroundColor: theme.background, paddingTop: topPad + 24, paddingBottom: insets.bottom + 24 }]}
+        contentContainerStyle={[styles.container, { paddingTop: topPad + 24, paddingBottom: insets.bottom + 24 }]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
@@ -203,7 +210,17 @@ export default function RegisterScreen() {
             </>
           ) : (
             <>
-              {devOtp ? (
+              {usedFirebase ? (
+                <View style={[styles.devOtpBox, { backgroundColor: theme.tintDim, borderColor: theme.tint + "60" }]}>
+                  <Ionicons name="shield-checkmark" size={16} color={theme.tint} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.devOtpLabel, { color: theme.tint, fontFamily: "Inter_500Medium" }]}>
+                      SMS sent via Firebase
+                    </Text>
+                    <Text style={[styles.devOtpValue, { color: theme.textSecondary, fontFamily: "Inter_400Regular", fontSize: 13 }]}>Check your phone for the OTP</Text>
+                  </View>
+                </View>
+              ) : devOtp ? (
                 <View style={[styles.devOtpBox, { backgroundColor: theme.aiAccentDim, borderColor: theme.aiAccent + "60" }]}>
                   <Ionicons name="information-circle" size={16} color={theme.aiAccent} />
                   <View style={{ flex: 1 }}>

@@ -8,7 +8,8 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 export function getApiUrl(): string {
   const host = process.env.EXPO_PUBLIC_DOMAIN || "nexus-chat--singhsahil20009.replit.app";
 
-  const url = new URL(`https://${host}`);
+  const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
+  const url = new URL(`${protocol}://${host}`);
 
   return url.href;
 }

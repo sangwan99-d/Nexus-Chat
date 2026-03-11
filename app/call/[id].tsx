@@ -35,6 +35,7 @@ export default function CallScreen() {
   const [callState, setCallState] = useState<CallState>("connecting");
   const [muted, setMuted] = useState(false);
   const [videoOff, setVideoOff] = useState(false);
+  const [speakerOn, setSpeakerOn] = useState(false);
   const [duration, setDuration] = useState(0);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -218,6 +219,26 @@ export default function CallScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  const flipCamera = async () => {
+    if (Platform.OS !== "web") return;
+    const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+    if (!videoTrack) return;
+    try {
+      const constraints = videoTrack.getConstraints();
+      const currentFacing = (constraints as any).facingMode;
+      const newFacing = currentFacing === "environment" ? "user" : "environment";
+      await videoTrack.applyConstraints({ ...constraints, facingMode: newFacing } as MediaTrackConstraints);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {
+      // Flip not supported on this device
+    }
+  };
+
+  const toggleSpeaker = () => {
+    setSpeakerOn(!speakerOn);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
   const avatarUrl = peerUser?.avatarUrl ? `${getApiUrl().replace(/\/$/, "")}${peerUser.avatarUrl.startsWith("http") ? "" : ""}${peerUser.avatarUrl}` : null;
@@ -230,84 +251,139 @@ export default function CallScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: "#0D0D1A" }]}>
+      {/* Remote video - full screen */}
       {isVideo && Platform.OS === "web" ? (
-        <>
-          <video
-            ref={remoteVideoRef}
-            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%", objectFit: "cover" } as any}
-            autoPlay
-            playsInline
-          />
+        <video
+          ref={remoteVideoRef}
+          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%", objectFit: "cover" } as any}
+          autoPlay
+          playsInline
+        />
+      ) : null}
+
+      {/* Self view - PiP (absolute positioned) */}
+      {isVideo && Platform.OS === "web" ? (
+        <View style={[styles.selfView, { top: topPad + 16 }]}>
           <video
             ref={localVideoRef}
-            style={{ position: "absolute", top: topPad + 16, right: 16, width: 120, height: 160, objectFit: "cover", borderRadius: 12 } as any}
+            style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 12 } as any}
             autoPlay
             playsInline
             muted
           />
-        </>
+        </View>
       ) : null}
 
-      <View style={[styles.info, { paddingTop: topPad + 48 }]}>
-        {avatarUrl ? (
-          <Image source={{ uri: avatarUrl }} style={styles.avatar} />
-        ) : (
-          <View style={[styles.avatarFallback, { backgroundColor: "#ffffff20" }]}>
-            <Text style={styles.avatarInitials}>{peerUser?.displayName?.slice(0, 2).toUpperCase() || "??"}</Text>
-          </View>
-        )}
-        <Text style={[styles.name, { fontFamily: "Inter_700Bold" }]}>{peerUser?.displayName || "..."}</Text>
-        <Text style={[styles.status, { fontFamily: "Inter_400Regular" }]}>{stateLabel}</Text>
+      {/* User info (shown when no active video or during non-video calls) */}
+      {(!isVideo || callState !== "active") && (
+        <View style={[styles.info, { paddingTop: topPad + 48 }]}>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatarFallback, { backgroundColor: "#ffffff20" }]}>
+              <Text style={styles.avatarInitials}>{peerUser?.displayName?.slice(0, 2).toUpperCase() || "??"}</Text>
+            </View>
+          )}
+          <Text style={[styles.name, { fontFamily: "Inter_700Bold" }]}>{peerUser?.displayName || "..."}</Text>
+          <Text style={[styles.status, { fontFamily: "Inter_400Regular" }]}>{stateLabel}</Text>
 
-        {Platform.OS !== "web" && callState === "ringing" && (
-          <View style={[styles.nativeBadge, { backgroundColor: "#ffffff20" }]}>
-            <Ionicons name="information-circle" size={16} color="rgba(255,255,255,0.7)" />
-            <Text style={styles.nativeText}>Calls use WebRTC on web. Native requires a production build.</Text>
-          </View>
-        )}
-      </View>
-
-      {callState === "active" || Platform.OS !== "web" ? null : (
-        callState === "ringing" && !isIncoming ? (
-          <View style={styles.ripple}>
-            <ActivityIndicator size="large" color="rgba(255,255,255,0.3)" />
-          </View>
-        ) : null
+          {Platform.OS !== "web" && callState === "ringing" && (
+            <View style={[styles.nativeBadge, { backgroundColor: "#ffffff20" }]}>
+              <Ionicons name="information-circle" size={16} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.nativeText}>Calls use WebRTC on web. Native requires a production build.</Text>
+            </View>
+          )}
+        </View>
       )}
 
-      <View style={[styles.controls, { paddingBottom: bottomPad + 32 }]}>
+      {/* Ringing indicator */}
+      {callState === "ringing" && !isIncoming && Platform.OS === "web" && (
+        <View style={styles.ripple}>
+          <ActivityIndicator size="large" color="rgba(255,255,255,0.3)" />
+        </View>
+      )}
+
+      {/* Active video call: show name & duration at top */}
+      {isVideo && callState === "active" && (
+        <View style={[styles.topBar, { paddingTop: topPad + 12 }]}>
+          <Text style={[styles.topBarName, { fontFamily: "Inter_600SemiBold" }]}>{peerUser?.displayName || "..."}</Text>
+          <Text style={[styles.topBarDuration, { fontFamily: "Inter_400Regular" }]}>{formatDuration(duration)}</Text>
+        </View>
+      )}
+
+      {/* Control bar with blur background */}
+      <View style={[styles.controlBar, { paddingBottom: bottomPad + 20 }]}>
+        <View style={styles.controlBarBg} />
         {callState !== "ended" && callState !== "rejected" ? (
-          <>
-            <Pressable
-              style={[styles.controlBtn, { backgroundColor: muted ? "#FF3B30" : "rgba(255,255,255,0.15)" }]}
-              onPress={toggleMute}
-            >
-              <Ionicons name={muted ? "mic-off" : "mic"} size={26} color="white" />
-            </Pressable>
+          <View style={styles.controlsRow}>
+            <View style={styles.controlItem}>
+              <Pressable
+                style={[styles.controlBtn, { backgroundColor: muted ? "#FF3B30" : "rgba(255,255,255,0.15)" }]}
+                onPress={toggleMute}
+              >
+                <Ionicons name={muted ? "mic-off" : "mic"} size={24} color="white" />
+              </Pressable>
+              <Text style={styles.controlLabel}>{muted ? "Unmute" : "Mute"}</Text>
+            </View>
 
             {isVideo && (
-              <Pressable
-                style={[styles.controlBtn, { backgroundColor: videoOff ? "#FF3B30" : "rgba(255,255,255,0.15)" }]}
-                onPress={toggleVideo}
-              >
-                <Ionicons name={videoOff ? "videocam-off" : "videocam"} size={26} color="white" />
-              </Pressable>
+              <View style={styles.controlItem}>
+                <Pressable
+                  style={[styles.controlBtn, { backgroundColor: videoOff ? "#FF3B30" : "rgba(255,255,255,0.15)" }]}
+                  onPress={toggleVideo}
+                >
+                  <Ionicons name={videoOff ? "videocam-off" : "videocam"} size={24} color="white" />
+                </Pressable>
+                <Text style={styles.controlLabel}>{videoOff ? "Camera On" : "Camera Off"}</Text>
+              </View>
             )}
 
-            <Pressable
-              style={[styles.controlBtn, styles.endBtn]}
-              onPress={endCall}
-            >
-              <Ionicons name="call" size={26} color="white" style={{ transform: [{ rotate: "135deg" }] }} />
-            </Pressable>
-          </>
+            {isVideo && (
+              <View style={styles.controlItem}>
+                <Pressable
+                  style={[styles.controlBtn, { backgroundColor: "rgba(255,255,255,0.15)" }]}
+                  onPress={flipCamera}
+                >
+                  <Ionicons name="camera-reverse" size={24} color="white" />
+                </Pressable>
+                <Text style={styles.controlLabel}>Flip</Text>
+              </View>
+            )}
+
+            {!isVideo && (
+              <View style={styles.controlItem}>
+                <Pressable
+                  style={[styles.controlBtn, { backgroundColor: speakerOn ? theme.tint + "40" : "rgba(255,255,255,0.15)" }]}
+                  onPress={toggleSpeaker}
+                >
+                  <Ionicons name={speakerOn ? "volume-high" : "volume-medium"} size={24} color="white" />
+                </Pressable>
+                <Text style={styles.controlLabel}>Speaker</Text>
+              </View>
+            )}
+
+            <View style={styles.controlItem}>
+              <Pressable
+                style={[styles.controlBtn, styles.endBtn]}
+                onPress={endCall}
+              >
+                <Ionicons name="call" size={24} color="white" style={{ transform: [{ rotate: "135deg" }] }} />
+              </Pressable>
+              <Text style={[styles.controlLabel, { color: "#FF3B30" }]}>End</Text>
+            </View>
+          </View>
         ) : (
-          <Pressable
-            style={[styles.controlBtn, { backgroundColor: "rgba(255,255,255,0.15)" }]}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="close" size={26} color="white" />
-          </Pressable>
+          <View style={styles.controlsRow}>
+            <View style={styles.controlItem}>
+              <Pressable
+                style={[styles.controlBtn, { backgroundColor: "rgba(255,255,255,0.15)" }]}
+                onPress={() => router.back()}
+              >
+                <Ionicons name="close" size={26} color="white" />
+              </Pressable>
+              <Text style={styles.controlLabel}>Close</Text>
+            </View>
+          </View>
         )}
       </View>
     </View>
@@ -316,6 +392,17 @@ export default function CallScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  selfView: {
+    position: "absolute",
+    right: 16,
+    width: 120,
+    height: 160,
+    borderRadius: 12,
+    overflow: "hidden",
+    zIndex: 10,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
   info: { flex: 1, alignItems: "center", gap: 12 },
   avatar: { width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: "rgba(255,255,255,0.3)" },
   avatarFallback: { width: 100, height: 100, borderRadius: 50, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "rgba(255,255,255,0.2)" },
@@ -328,13 +415,35 @@ const styles = StyleSheet.create({
   },
   nativeText: { fontSize: 13, color: "rgba(255,255,255,0.6)", flex: 1, fontFamily: "Inter_400Regular" },
   ripple: { position: "absolute", alignSelf: "center", top: "40%" },
-  controls: {
-    flexDirection: "row", justifyContent: "center", alignItems: "center",
-    gap: 24, paddingHorizontal: 32,
+  topBar: {
+    position: "absolute", top: 0, left: 0, right: 0, zIndex: 5,
+    alignItems: "center", paddingBottom: 12,
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  topBarName: { color: "white", fontSize: 16 },
+  topBarDuration: { color: "rgba(255,255,255,0.7)", fontSize: 14, marginTop: 2 },
+  controlBar: {
+    position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 5,
+    paddingTop: 20,
+  },
+  controlBarBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    backdropFilter: "blur(20px)",
+  } as any,
+  controlsRow: {
+    flexDirection: "row", justifyContent: "center", alignItems: "flex-start",
+    gap: 20, paddingHorizontal: 24,
+  },
+  controlItem: {
+    alignItems: "center", gap: 6, minWidth: 60,
   },
   controlBtn: {
-    width: 64, height: 64, borderRadius: 32,
+    width: 56, height: 56, borderRadius: 28,
     alignItems: "center", justifyContent: "center",
+  },
+  controlLabel: {
+    color: "rgba(255,255,255,0.7)", fontSize: 11, fontFamily: "Inter_400Regular",
   },
   endBtn: { backgroundColor: "#FF3B30" },
 });
