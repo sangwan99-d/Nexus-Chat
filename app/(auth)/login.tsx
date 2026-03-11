@@ -9,6 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { AnimatedBackground } from "@/components/AnimatedBackground";
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -51,8 +52,9 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <AnimatedBackground />
       <ScrollView
-        contentContainerStyle={[styles.container, { backgroundColor: theme.background, paddingTop: topPad + 24, paddingBottom: insets.bottom + 24 }]}
+        contentContainerStyle={[styles.container, { paddingTop: topPad + 24, paddingBottom: insets.bottom + 24 }]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
@@ -126,7 +128,7 @@ export default function LoginScreen() {
 
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: theme.textSecondary, fontFamily: "Inter_400Regular" }]}>
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
           </Text>
           <Pressable onPress={() => router.replace("/(auth)/register")}>
             <Text style={[styles.link, { color: theme.tint, fontFamily: "Inter_600SemiBold" }]}>Register</Text>

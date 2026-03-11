@@ -399,5 +399,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ ok: true });
   });
 
+  // --- Status (WhatsApp-style Stories) ---
+
+  app.get("/api/statuses", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ error: "Unauthorized" });
+    const allStatuses = await storage.getStatuses();
+    // Group by user
+    const grouped = new Map<string, { user: any; statuses: any[] }>();
+    for (const s of allStatuses) {
+      const { user, ...statusData } = s;
+      if (!grouped.has(user.id)) {
+        grouped.set(user.id, { user: sanitizeUser(user), statuses: [] });
+      }
+      grouped.get(user.id)!.statuses.push(statusData);
+    }
+    res.json(Array.from(grouped.values()));
+  });
+
+  app.get("/api/statuses/me", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ error: "Unauthorized" });
+    const myStatuses = await storage.getUserStatuses(req.session.userId);
+    res.json(myStatuses);
+  });
+
+  app.post("/api/statuses", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ error: "Unauthorized" });
+    const { imageUrl, caption } = req.body;
+    if (!imageUrl) return res.status(400).json({ error: "Image URL is required" });
+    const status = await storage.createStatus(req.session.userId, imageUrl, caption);
+    res.json(status);
+  });
+
+  app.delete("/api/statuses/:id", async (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ error: "Unauthorized" });
+    await storage.deleteStatus(req.params.id, req.session.userId);
+    res.json({ ok: true });
+  });
+
+  // Cron job: auto-delete statuses older than 24 hours (runs every hour)
+  setInterval(async () => {
+    try {
+      const count = await storage.deleteExpiredStatuses();
+      if (count > 0) {
+        console.log(`[cron] Deleted ${count} expired status(es)`);
+      }
+    } catch (err) {
+      console.error("[cron] Failed to delete expired statuses:", err);
+    }
+  }, 60 * 60 * 1000); // every hour
+
   return httpServer;
 }

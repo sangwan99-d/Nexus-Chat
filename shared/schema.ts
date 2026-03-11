@@ -27,6 +27,14 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const statuses = pgTable("statuses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  imageUrl: text("image_url").notNull(),
+  caption: text("caption"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const aiMessages = pgTable("ai_messages", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -46,6 +54,10 @@ export const messagesRelations = relations(messages, ({ one }) => ({
     references: [users.id],
     relationName: "sentMessages",
   }),
+}));
+
+export const statusesRelations = relations(statuses, ({ one }) => ({
+  user: one(users, { fields: [statuses.userId], references: [users.id] }),
 }));
 
 export const aiMessagesRelations = relations(aiMessages, ({ one }) => ({
@@ -72,3 +84,4 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type AiMessage = typeof aiMessages.$inferSelect;
+export type Status = typeof statuses.$inferSelect;

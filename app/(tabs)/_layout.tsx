@@ -13,6 +13,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "message", selected: "message.fill" }} />
         <Label>Chats</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="status">
+        <Icon sf={{ default: "circle.dashed", selected: "circle.dashed.inset.filled" }} />
+        <Label>Status</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings">
         <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
         <Label>Settings</Label>
@@ -58,6 +62,15 @@ function ClassicTabLayout() {
           title: "Chats",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? "chatbubbles" : "chatbubbles-outline"} size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="status"
+        options={{
+          title: "Status",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "ellipse" : "ellipse-outline"} size={24} color={color} />
           ),
         }}
       />

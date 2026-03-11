@@ -4,6 +4,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { getApiUrl } from "@/lib/query-client";
 
+let MapView: React.ComponentType<any> | null = null;
+let Marker: React.ComponentType<any> | null = null;
+try {
+  const maps = require("react-native-maps");
+  MapView = maps.default;
+  Marker = maps.Marker;
+} catch {
+  // react-native-maps not available (e.g. web) - will use fallback
+}
+
 interface MessageMetadata {
   latitude?: number;
   longitude?: number;
@@ -54,17 +64,56 @@ export function MessageBubble({ message, isMe, showTime = true }: Props) {
   const textColor = isMe ? theme.bubbleMeText : theme.bubbleThemText;
 
   if (message.type === "location" && message.metadata?.latitude) {
+    const lat = message.metadata.latitude;
+    const lng = message.metadata.longitude ?? 0;
+    const mapsUrl = Platform.OS === "ios"
+      ? `maps:0,0?q=${lat},${lng}`
+      : `geo:0,0?q=${lat},${lng}`;
+    const webMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+
+    const canShowMap = MapView && Marker && Platform.OS !== "web";
+
     return (
       <View style={[styles.row, isMe ? styles.rowMe : styles.rowThem]}>
-        <View style={[styles.locationBubble, { backgroundColor: bubbleBg }]}>
-          <Ionicons name="location" size={20} color={isMe ? theme.bubbleMeText : theme.tint} />
-          <View>
-            <Text style={[styles.locationTitle, { color: textColor }]}>Location Shared</Text>
-            <Text style={[styles.locationCoords, { color: isMe ? `${theme.bubbleMeText}AA` : theme.textSecondary }]}>
-              {message.metadata.latitude?.toFixed(4)}, {message.metadata.longitude?.toFixed(4)}
-            </Text>
+        <Pressable
+          style={[styles.locationBubble, { backgroundColor: bubbleBg }]}
+          onPress={() => Linking.openURL(Platform.OS === "web" ? webMapsUrl : mapsUrl).catch(() => Linking.openURL(webMapsUrl))}
+        >
+          {canShowMap ? (
+            <View style={styles.mapContainer}>
+              <MapView
+                style={styles.mapView}
+                initialRegion={{
+                  latitude: lat,
+                  longitude: lng,
+                  latitudeDelta: 0.005,
+                  longitudeDelta: 0.005,
+                }}
+                scrollEnabled={false}
+                zoomEnabled={false}
+                rotateEnabled={false}
+                pitchEnabled={false}
+                liteMode={Platform.OS === "android"}
+              >
+                <Marker coordinate={{ latitude: lat, longitude: lng }} />
+              </MapView>
+            </View>
+          ) : (
+            <View style={styles.mapFallback}>
+              <Ionicons name="map" size={32} color={isMe ? theme.bubbleMeText : theme.tint} />
+            </View>
+          )}
+          <View style={styles.locationInfo}>
+            <Ionicons name="location" size={16} color={isMe ? theme.bubbleMeText : theme.tint} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.locationTitle, { color: textColor }]}>Location Shared</Text>
+              <Text style={[styles.locationCoords, { color: isMe ? `${theme.bubbleMeText}AA` : theme.textSecondary }]}>
+                {lat.toFixed(4)}, {lng.toFixed(4)}
+              </Text>
+            </View>
+            <Ionicons name="open-outline" size={14} color={isMe ? `${theme.bubbleMeText}99` : theme.textMuted} />
           </View>
-        </View>
+        </Pressable>
         {showTime && <Text style={[styles.time, isMe ? styles.timeMe : styles.timeThem, { color: theme.textMuted }]}>{time}</Text>}
       </View>
     );
@@ -162,11 +211,24 @@ const styles = StyleSheet.create({
   timeMe: { textAlign: "right" },
   timeThem: { textAlign: "left" },
   locationBubble: {
-    flexDirection: "row", alignItems: "center", borderRadius: 16,
-    paddingHorizontal: 14, paddingVertical: 10, gap: 10, borderBottomRightRadius: 4,
+    borderRadius: 16, overflow: "hidden", borderBottomRightRadius: 4,
   },
-  locationTitle: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  locationCoords: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  mapContainer: {
+    width: 220, height: 130, overflow: "hidden",
+  },
+  mapView: {
+    width: "100%", height: "100%",
+  },
+  mapFallback: {
+    width: 220, height: 100, alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.05)",
+  },
+  locationInfo: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 12, paddingVertical: 8,
+  },
+  locationTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  locationCoords: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
   mediaBubble: { borderRadius: 16, overflow: "hidden" },
   imageContent: { width: 220, height: 180, borderRadius: 16 },
   videoBubble: { width: 220, height: 160, alignItems: "center", justifyContent: "center" },

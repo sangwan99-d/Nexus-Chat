@@ -49,6 +49,15 @@ export async function ensureTablesExist(): Promise<void> {
         "created_at" timestamp DEFAULT now()
       );
     `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "statuses" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "image_url" text NOT NULL,
+        "caption" text,
+        "created_at" timestamp DEFAULT now()
+      );
+    `);
     console.log("[db] Tables verified/created successfully");
   } catch (err) {
     console.error("[db] Failed to ensure tables exist:", err);

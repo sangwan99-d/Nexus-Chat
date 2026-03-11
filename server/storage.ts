@@ -1,6 +1,6 @@
-import { users, messages, aiMessages, type User, type InsertUser, type Message, type AiMessage } from "@shared/schema";
+import { users, messages, aiMessages, statuses, type User, type InsertUser, type Message, type AiMessage, type Status } from "@shared/schema";
 import { db } from "./db";
-import { eq, or, and, ne, desc } from "drizzle-orm";
+import { eq, or, and, ne, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -18,6 +18,12 @@ export interface IStorage {
   getAiMessages(userId: string): Promise<AiMessage[]>;
   createAiMessage(userId: string, role: string, content: string): Promise<AiMessage>;
   clearAiMessages(userId: string): Promise<void>;
+
+  createStatus(userId: string, imageUrl: string, caption?: string): Promise<Status>;
+  getStatuses(): Promise<(Status & { user: User })[]>;
+  getUserStatuses(userId: string): Promise<Status[]>;
+  deleteStatus(id: string, userId: string): Promise<void>;
+  deleteExpiredStatuses(): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -113,6 +119,46 @@ export class DatabaseStorage implements IStorage {
 
   async clearAiMessages(userId: string): Promise<void> {
     await db.delete(aiMessages).where(eq(aiMessages.userId, userId));
+  }
+
+  async createStatus(userId: string, imageUrl: string, caption?: string): Promise<Status> {
+    const [created] = await db.insert(statuses).values({ userId, imageUrl, caption: caption ?? null }).returning();
+    return created;
+  }
+
+  async getStatuses(): Promise<(Status & { user: User })[]> {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const allStatuses = await db.select().from(statuses)
+      .where(sql`${statuses.createdAt} > ${twentyFourHoursAgo}`)
+      .orderBy(desc(statuses.createdAt));
+
+    const result: (Status & { user: User })[] = [];
+    for (const status of allStatuses) {
+      const user = await this.getUser(status.userId);
+      if (user) {
+        result.push({ ...status, user });
+      }
+    }
+    return result;
+  }
+
+  async getUserStatuses(userId: string): Promise<Status[]> {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    return db.select().from(statuses)
+      .where(and(eq(statuses.userId, userId), sql`${statuses.createdAt} > ${twentyFourHoursAgo}`))
+      .orderBy(desc(statuses.createdAt));
+  }
+
+  async deleteStatus(id: string, userId: string): Promise<void> {
+    await db.delete(statuses).where(and(eq(statuses.id, id), eq(statuses.userId, userId)));
+  }
+
+  async deleteExpiredStatuses(): Promise<number> {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const deleted = await db.delete(statuses)
+      .where(sql`${statuses.createdAt} <= ${twentyFourHoursAgo}`)
+      .returning();
+    return deleted.length;
   }
 }
 
